@@ -27,8 +27,15 @@ export const BASE_COSTS: Record<string, Record<string, number>> = {
     obsidian: 1_000_000,
     bedrock: 2_000_000,
   },
-  M1: { wood: 0, gold: 25_000, diamond: 50_000, emerald: 100_000, obsidian: 250_000 },
-  M2: { wood: 0, gold: 50_000, diamond: 100_000, emerald: 250_000, obsidian: 500_000 },
+  M1:{
+    wood: 0,
+    gold: 100_000,
+    diamond: 250_000,
+    emerald: 500_000,
+    obsidian: 1_000_000,
+    bedrock: 2_000_000,
+  },
+  M2: { wood: 0, gold: 100_000, diamond: 250_000, emerald: 500_000, obsidian: 1_000_000 },
   M3: { wood: 0, gold: 100_000, diamond: 250_000, emerald: 500_000, obsidian: 1_000_000 },
   M4: { wood: 0, gold: 100_000, diamond: 250_000, emerald: 500_000, obsidian: 1_000_000 },
   M5: {
