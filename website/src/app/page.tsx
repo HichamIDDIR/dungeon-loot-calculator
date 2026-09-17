@@ -4,54 +4,66 @@ import { Footer } from "@/components/Footer";
 import { useState } from "react";
 import useSWR from "swr";
 import { FormattedNumber } from "../components/FormattedNumber";
+import { BASE_COSTS } from "../constants/baseCosts";
 import { items } from "../constants/items";
 import { LootAPIResponse } from "./api/data/[floor]/route";
 
 const fetcher = (...args: Parameters<typeof fetch>) =>
   fetch(...args).then((res) => res.json());
 
+const chestEV = (
+  rows: LootAPIResponse,
+  sPlus: boolean,
+  base: number,
+  prices: Record<string, number> | undefined
+) => {
+  let ev = 0;
+  for (const row of rows) {
+    const itemId = items[row.item];
+    const price = prices?.[itemId];
+    if (price === undefined) continue;
+    const profit = price - parseInt(row.cost.replaceAll(/,/g, ""));
+    if (profit < 0) continue;
+    ev += (profit * parseFloat(sPlus ? row.sPlus : row.base)) / 100;
+  }
+  return ev - base;
+};
+
 const dateFormat = new Intl.RelativeTimeFormat(undefined);
 
 export default function Home() {
   const [floor, setFloor] = useState("F7");
   const [chest, setChest] = useState("Bedrock Chest");
-  const [talisman, setTalisman] = useState("Artifact");
-  const [luck, setLuck] = useState("10");
 
   // Reset the "Chest" dropdown if it's set to Bedrock and a floor under 5 is chosen
   if (parseInt(floor.charAt(1)) < 5 && chest === "Bedrock Chest") {
     setChest("Obsidian Chest");
   }
 
-  const url = `/api/data/${floor}?chest=${encodeURIComponent(
-    chest
-  )}&talisman=${talisman}&luck=${luck}`;
+  const url = `/api/data/${floor}?chest=${encodeURIComponent(chest)}`;
+
+  const chestName = chest.toLowerCase().replace(/ chest$/, "");
+  const baseCost = BASE_COSTS[floor]?.[chestName] ?? 0;
 
   const { data: chances } = useSWR<LootAPIResponse>(url, fetcher);
+  const { data: chestSummary } = useSWR<Record<string, LootAPIResponse>>(
+    `/api/data/${floor}?chest=all`,
+    fetcher
+  );
   const { data: priceData } = useSWR<{
     prices: Record<string, number>;
     lastModified: string;
   }>("/api/prices", fetcher);
 
-  const calculateEV = (sPlus = false) => {
-    let ev = 0;
-    if (chances !== undefined) {
-      for (const row of chances) {
-        const itemId = items[row.item];
-        const price = priceData?.prices?.[itemId];
-        const chance = sPlus ? row.sPlus : row.base;
-        if (price === undefined) continue;
-        const profit = price - parseInt(row.cost.replaceAll(/,/g, ""));
-        if (profit < 0) continue;
-        ev += (profit * parseFloat(chance)) / 100;
-      }
-    }
-    return ev;
-  };
+  const calculateEV = (sPlus = false) =>
+    chances !== undefined
+      ? chestEV(chances, sPlus, baseCost, priceData?.prices)
+      : 0;
 
   const [sPlus, setSPlus] = useState(true);
+  const ev = calculateEV(sPlus);
   const kismetPrice = priceData?.prices?.["KISMET_FEATHER"];
-  const evAfterReroll = calculateEV(sPlus) - (kismetPrice ?? 0);
+  const evAfterReroll = ev - (kismetPrice ?? 0);
 
   return (
     <main className="flex flex-col prose dark:prose-invert mx-auto">
@@ -101,33 +113,6 @@ export default function Home() {
             </option>
           </select>
         </label>
-        <label className="flex flex-col gap-2">
-          <span className="font-medium">Treasure Talisman</span>
-          <select
-            className="p-2 rounded-md dark:bg-gray-900"
-            value={talisman}
-            onChange={(e) => setTalisman(e.currentTarget.value)}
-          >
-            <option value="None">None</option>
-            <option value="Talisman">Talisman</option>
-            <option value="Ring">Ring</option>
-            <option value="Artifact">Artifact</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="font-medium">Boss Luck</span>
-          <select
-            className="p-2 rounded-md dark:bg-gray-900"
-            value={luck}
-            onChange={(e) => setLuck(e.currentTarget.value)}
-          >
-            <option value="0">0</option>
-            <option value="1">1</option>
-            <option value="3">3</option>
-            <option value="5">5</option>
-            <option value="10">10</option>
-          </select>
-        </label>
       </form>
       {!!chances && (
         <>
@@ -143,7 +128,15 @@ export default function Home() {
           <ul>
             <li>
               Expected value per run:{" "}
-              <FormattedNumber>{calculateEV(sPlus)}</FormattedNumber>
+              <FormattedNumber>{ev}</FormattedNumber>
+              <span className={ev > 0 ? "text-green-600" : "text-red-600"}>
+                {" "}
+                {ev > 0 ? "✅ Worth opening" : "⛔ Not worth opening"}
+              </span>
+            </li>
+            <li>
+              Chest cost (base):{" "}
+              <FormattedNumber noColor>{baseCost}</FormattedNumber>
             </li>
             <li>
               Kismet Price:{" "}
@@ -165,12 +158,46 @@ export default function Home() {
                 : "😔 Rerolling is unlikely profitable :("}
             </li>
           </ul>
+          {chestSummary !== undefined && (
+            <>
+              <h2>Chest Comparison</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Chest</th>
+                    <th>Net EV ({sPlus ? "S+" : "base"})</th>
+                    <th>Verdict</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.keys(chestSummary).map((c) => {
+                    const net = chestEV(
+                      chestSummary[c],
+                      sPlus,
+                      BASE_COSTS[floor]?.[c] ?? 0,
+                      priceData?.prices
+                    );
+                    return (
+                      <tr key={c}>
+                        <td>{c.charAt(0).toUpperCase() + c.slice(1)} Chest</td>
+                        <td>
+                          <FormattedNumber>{net}</FormattedNumber>
+                        </td>
+                        <td>{net > 0 ? "✅ Open" : "⛔ Skip"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
           <h2>Items</h2>
           <table>
             <thead>
               <tr>
                 <th>Item</th>
                 <th>Cost</th>
+                <th>First Roll</th>
                 <th>Chance (Base)</th>
                 <th>Chance (S+)</th>
                 <th>BIN</th>
@@ -189,6 +216,7 @@ export default function Home() {
                   <tr key={row.item}>
                     <td>{row.item}</td>
                     <td>{row.cost}</td>
+                    <td>{row.firstRoll}</td>
                     <td>{row.base}</td>
                     <td>{row.sPlus}</td>
                     <td>
@@ -196,6 +224,11 @@ export default function Home() {
                     </td>
                     <td>
                       <FormattedNumber>{profit}</FormattedNumber>
+                      {profit < 0 && (
+                        <span className="ml-1 text-xs text-gray-500">
+                          (skip)
+                        </span>
+                      )}
                     </td>
                     <td>
                       <FormattedNumber>

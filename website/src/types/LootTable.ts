@@ -19,12 +19,7 @@ export interface FloorLootTable {
   chest: string;
   itemName: string;
   cost: string;
-  base: DropChance[];
-  sPlus: DropChance[];
-}
-
-export interface DropChance {
-  talisman: "Talisman" | "Ring" | "Artifact" | "None";
-  luck: "0" | "1" | "3" | "5" | "10";
-  chance: `${string}%`;
+  firstRoll: `${string}%`;
+  base: `${string}%`;
+  sPlus: `${string}%`;
 }
