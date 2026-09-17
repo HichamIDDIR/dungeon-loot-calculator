@@ -45,8 +45,8 @@ export const Footer = ({ pricesLastUpdated }: { pricesLastUpdated?: Date }) => {
       </p>
       <p>
         Drop chances sourced from the{" "}
-        <Link href="https://wiki.hypixel.net/Main_Page">
-          Hypixel SkyBlock Wiki
+        <Link href="https://hypixelskyblock.minecraft.wiki">
+          Hypixel SkyBlock Community Wiki
         </Link>
         .
       </p>
