@@ -1,5 +1,7 @@
 # Dungeon Loot Calculator
 
+> **Live demo:** https://dungeon-profit-calculator.vercel.app
+
 A Next.js website that computes the expected value of Hypixel SkyBlock dungeon loot chests (F1–F7, M1–M7) using hand-verified drop data from the [Hypixel SkyBlock Community Wiki](https://hypixelskyblock.minecraft.wiki) and live market prices.
 
 **Fork notice:** this is a fork of [FluxCapacitor2/dungeon-loot-calculator](https://github.com/FluxCapacitor2/dungeon-loot-calculator) (archived May 2026, no license specified). It continues the project with refreshed data and new decision aids — see **Credits** below.
