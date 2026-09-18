@@ -67,8 +67,38 @@ export default function Home() {
 
   return (
     <main className="flex flex-col prose dark:prose-invert mx-auto">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            name: "Hypixel SkyBlock Dungeon Loot Calculator",
+            alternateName: "SkyBlock Dungeon Loot Calculator",
+            url: "https://dungeon-profit-calculator.vercel.app",
+            applicationCategory: "UtilityApplication",
+            operatingSystem: "Web",
+            inLanguage: "en",
+            description:
+              "Expected value calculator for Hypixel SkyBlock dungeon loot chests (F1-F7, M1-M7). Compares wood, gold, diamond, emerald, obsidian and bedrock chest EV using live market prices, S+ drop chances and Kismet feather rerolls.",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "USD",
+            },
+            genre: ["Gaming", "Hypixel SkyBlock"],
+          }),
+        }}
+      />
       <h1 className="mt-24">SkyBlock Dungeon Loot Calculator</h1>
-      <h2 className="mt-0">Inputs</h2>
+      <p className="mt-0 text-lg">
+        Find out whether a Hypixel SkyBlock dungeon chest is worth opening.
+        This EV calculator covers every floor (F1–F7 and M1–M7) and all six
+        chests (wood, gold, diamond, emerald, obsidian, and bedrock) using
+        live BIN prices, S+ drop chances, and Kismet feather reroll
+        profitability.
+      </p>
+      <h2 className="mt-4">Inputs</h2>
       <form className="flex md:flex-row gap-4">
         <label className="flex flex-col gap-2">
           <span className="font-medium">Floor</span>
