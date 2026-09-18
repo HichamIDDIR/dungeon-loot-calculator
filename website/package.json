@@ -16,6 +16,7 @@
     "swr": "^2.2.4"
   },
   "devDependencies": {
+    "@vercel/analytics": "^2.0.1",
     "@tailwindcss/typography": "^0.5.10",
     "@types/node": "^20",
     "@types/react": "^18",
