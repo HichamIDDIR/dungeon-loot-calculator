@@ -7,9 +7,13 @@ import { FormattedNumber } from "../components/FormattedNumber";
 import { BASE_COSTS } from "../constants/baseCosts";
 import { items } from "../constants/items";
 import { LootAPIResponse } from "./api/data/[floor]/route";
+import { PricesResponse } from "./api/prices/route";
 
 const fetcher = (...args: Parameters<typeof fetch>) =>
-  fetch(...args).then((res) => res.json());
+  fetch(...args).then((res) => {
+    if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+    return res.json();
+  });
 
 const chestEV = (
   rows: LootAPIResponse,
@@ -28,8 +32,6 @@ const chestEV = (
   }
   return ev - base;
 };
-
-const dateFormat = new Intl.RelativeTimeFormat(undefined);
 
 export default function Home() {
   const [floor, setFloor] = useState("F7");
@@ -50,10 +52,33 @@ export default function Home() {
     `/api/data/${floor}?chest=all`,
     fetcher
   );
-  const { data: priceData } = useSWR<{
-    prices: Record<string, number>;
-    lastModified: string;
-  }>("/api/prices", fetcher);
+  const {
+    data: priceData,
+    error: pricesError,
+  } = useSWR<PricesResponse>("/api/prices", fetcher);
+
+  const pricesReady = priceData !== undefined && !pricesError;
+
+  const priceNotice = pricesError
+    ? {
+        tone: "error" as const,
+        text: "Live prices could not be loaded, so expected values are hidden instead of showing as negative. This page retries automatically.",
+      }
+    : priceData?.stale
+    ? {
+        tone: "warning" as const,
+        text: `The live price feed is down — showing cached prices${
+          priceData.lastModified
+            ? ` last updated ${new Date(priceData.lastModified).toLocaleString()}`
+            : ""
+        }. Values may be slightly out of date.`,
+      }
+    : priceData?.incomplete
+    ? {
+        tone: "warning" as const,
+        text: `${priceData.missingCount} items have no live price and are excluded from the expected values below.`,
+      }
+    : null;
 
   const calculateEV = (sPlus = false) =>
     chances !== undefined
@@ -158,11 +183,19 @@ export default function Home() {
           <ul>
             <li>
               Expected value per run:{" "}
-              <FormattedNumber>{ev}</FormattedNumber>
-              <span className={ev > 0 ? "text-green-600" : "text-red-600"}>
-                {" "}
-                {ev > 0 ? "✅ Worth opening" : "⛔ Not worth opening"}
-              </span>
+              {pricesReady ? (
+                <>
+                  <FormattedNumber>{ev}</FormattedNumber>
+                  <span className={ev > 0 ? "text-green-600" : "text-red-600"}>
+                    {" "}
+                    {ev > 0 ? "✅ Worth opening" : "⛔ Not worth opening"}
+                  </span>
+                </>
+              ) : (
+                <span className="text-amber-600">
+                  {pricesError ? "⚠️ Prices unavailable" : "⏳ Loading prices…"}
+                </span>
+              )}
             </li>
             <li>
               Chest cost (base):{" "}
@@ -171,24 +204,42 @@ export default function Home() {
             <li>
               Kismet Price:{" "}
               <FormattedNumber noColor>
-                {kismetPrice ?? "Loading..."}
+                {kismetPrice ?? (pricesError ? "Unavailable" : "Loading...")}
               </FormattedNumber>
             </li>
             <li>
               Expected value after rerolling:{" "}
-              {kismetPrice ? (
+              {pricesReady && kismetPrice !== undefined ? (
                 <FormattedNumber>{evAfterReroll}</FormattedNumber>
+              ) : pricesError ? (
+                "Unavailable"
               ) : (
                 "Loading..."
               )}
             </li>
             <li>
-              {evAfterReroll > 0
-                ? "🎉 Rerolling is likely profitable!"
-                : "😔 Rerolling is unlikely profitable :("}
+              {pricesReady && kismetPrice !== undefined
+                ? evAfterReroll > 0
+                  ? "🎉 Rerolling is likely profitable!"
+                  : "😔 Rerolling is unlikely profitable :("
+                : pricesError
+                ? "⚠️ Reroll profitability can't be calculated without live prices."
+                : "⏳ Waiting for live prices…"}
             </li>
           </ul>
-          {chestSummary !== undefined && (
+          {priceNotice && (
+            <p
+              role="alert"
+              className={
+                priceNotice.tone === "error"
+                  ? "rounded-md border border-red-300 bg-red-50 p-3 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+                  : "rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+              }
+            >
+              {priceNotice.text}
+            </p>
+          )}
+          {pricesReady && chestSummary !== undefined && (
             <>
               <h2>Chest Comparison</h2>
               <table>
@@ -239,9 +290,13 @@ export default function Home() {
               {chances.map((row) => {
                 const itemId = items[row.item];
                 const price = priceData?.prices?.[itemId];
+                const rowCost = parseInt(row.cost.replaceAll(/,/g, ""));
                 const profit =
-                  (price ?? 0) - parseInt(row.cost.replaceAll(/,/g, ""));
-                const ev = (profit * parseFloat(row.sPlus)) / 100;
+                  price === undefined ? undefined : price - rowCost;
+                const ev =
+                  profit === undefined
+                    ? undefined
+                    : (profit * parseFloat(row.sPlus)) / 100;
                 return (
                   <tr key={row.item}>
                     <td>{row.item}</td>
@@ -253,17 +308,25 @@ export default function Home() {
                       <FormattedNumber noColor>{price ?? "-"}</FormattedNumber>
                     </td>
                     <td>
-                      <FormattedNumber>{profit}</FormattedNumber>
-                      {profit < 0 && (
-                        <span className="ml-1 text-xs text-gray-500">
-                          (skip)
-                        </span>
+                      {profit === undefined ? (
+                        <span className="text-gray-500">-</span>
+                      ) : (
+                        <>
+                          <FormattedNumber>{profit}</FormattedNumber>
+                          {profit < 0 && (
+                            <span className="ml-1 text-xs text-gray-500">
+                              (skip)
+                            </span>
+                          )}
+                        </>
                       )}
                     </td>
                     <td>
-                      <FormattedNumber>
-                        {price ? Math.round(ev) : "-"}
-                      </FormattedNumber>
+                      {ev === undefined ? (
+                        <span className="text-gray-500">-</span>
+                      ) : (
+                        <FormattedNumber>{Math.round(ev)}</FormattedNumber>
+                      )}
                     </td>
                   </tr>
                 );
